@@ -13,6 +13,9 @@ const CSVUploader = () => {
 
   const handleFileUpload = (event) => {
     setFiles([...event.target.files]);
+    setTableData([]); // 
+    setError(""); // 
+    
   };
 
   const handleProcessResults = () => {
@@ -26,26 +29,36 @@ const CSVUploader = () => {
       setError("Please upload CSV files before processing.");
       return;
     }
-  
-    let allData = [...tableData];
+    setTableData([]); 
+    let allData = [];
+    
   
     const filePromises = files.map((file) => {
       return new Promise((resolve) => {
         Papa.parse(file, {
           complete: (results) => {
-            const data = results.data.slice(1).map((row) => {
-              const eventPress = parseFloat(row[2]) || 0;
-              const status = eventPress >= parseFloat(pressure) ? "Active" : "Inactive";
-              return {
+            const data = results.data.slice(1).reduce((acc, row) => {
+              if (!row[0] || !row[2] || !row[1]) return acc;
+            
+              const eventPress = parseFloat(row[2]);
+              const maxPress = parseFloat(row[1]);
+              if (isNaN(eventPress)) return acc;        
+            
+              const status = parseFloat(pressure) <= maxPress ? "Pass" : "Fail";
+              
+              acc.push({
                 key: row[0],
-                pressureMeasurement: eventPress + " PSI",
-                pressureMaxMeasurement: row[1] + " PSI",
+                pressureMeasurement: eventPress ,
+                pressureMaxMeasurement: row[1] ? row[1] + "" : "N/A",
                 status: status,
                 updatedBy: "",
                 updatedDate: new Date().toISOString().split("T")[0],
                 attachmentsIndicator: "0",
-              };
-            });
+              });
+            
+              return acc;
+            }, []);
+            
             allData = [...allData, ...data];
             resolve();
           },
@@ -55,7 +68,8 @@ const CSVUploader = () => {
     });
   
     Promise.all(filePromises).then(() => {
-      setTableData(allData);
+      setTableData([...allData]);        
+
     });
   };
 
@@ -105,7 +119,11 @@ const CSVUploader = () => {
           type="number"
           className="border p-2 rounded w-full"
           value={pressure}
-          onChange={(e) => setPressure(e.target.value)}
+          onChange={(e) => {
+            setPressure(e.target.value);
+            setTableData([]); //     
+          }}
+          
         />
         {error && <p className="text-red-500 text-sm">{error}</p>}
       </div>
@@ -139,7 +157,7 @@ const CSVUploader = () => {
                   <td className="border border-gray-300 p-2">{row.key}</td>
                   <td className="border border-gray-300 p-2">{row.pressureMeasurement}</td>
                   <td className="border border-gray-300 p-2">{row.pressureMaxMeasurement}</td>
-                  <td className="border border-gray-300 p-2">{row.status}</td>
+                  <td className={`border border-gray-300 p-2 ${row.status === "Pass" ? "text-green-500" : "text-red-500"}`}>{row.status}</td>
                   <td className="border border-gray-300 p-2">{row.updatedBy}</td>
                   <td className="border border-gray-300 p-2">{row.updatedDate}</td>
                   <td className="border border-gray-300 p-2">{row.attachmentsIndicator}</td>
